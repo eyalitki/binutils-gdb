@@ -321,14 +321,26 @@ enum output_type
   type_pie,
   type_relocatable,
   type_dll,
+  type_static_bundle,
 };
 
-#define bfd_link_pde(info)	   ((info)->type == type_pde)
-#define bfd_link_dll(info)	   ((info)->type == type_dll)
-#define bfd_link_relocatable(info) ((info)->type == type_relocatable)
-#define bfd_link_pie(info)	   ((info)->type == type_pie)
-#define bfd_link_executable(info)  (bfd_link_pde (info) || bfd_link_pie (info))
-#define bfd_link_pic(info)	   (bfd_link_dll (info) || bfd_link_pie (info))
+#define bfd_link_pde(info)		((info)->type == type_pde)
+#define bfd_link_pie(info)		((info)->type == type_pie)
+#define bfd_link_dll(info)		((info)->type == type_dll)
+#define bfd_link_relocatable_type(info)	\
+  ((info)->type == type_relocatable)
+#define bfd_link_static_bundle(info)	\
+  ((info)->type == type_static_bundle)
+#define bfd_link_relocatable(info)	\
+  (bfd_link_relocatable_type (info) || bfd_link_static_bundle (info))
+#define bfd_link_executable(info)	\
+  (bfd_link_pde (info) || bfd_link_pie (info))
+#define bfd_link_pic(info)		\
+  (bfd_link_dll (info) || bfd_link_pie (info))
+#define bfd_link_bundle(info)		\
+  (bfd_link_executable(info) ||		\
+   bfd_link_dll (info) ||		\
+   bfd_link_static_bundle (info))
 
 /* This structure holds all the information needed to communicate
    between BFD and the linker when doing a link.  */
@@ -336,7 +348,7 @@ enum output_type
 struct bfd_link_info
 {
   /* Output type.  */
-  ENUM_BITFIELD (output_type) type : 2;
+  ENUM_BITFIELD (output_type) type : 3;
 
   /* TRUE if BFD should pre-bind symbols in a shared object.  */
   unsigned int symbolic: 1;
