@@ -472,6 +472,8 @@ static const struct ld_option ld_options[] =
     '\0', NULL, N_("Create a shared library"), ONE_DASH },
   { {"Bshareable", no_argument, NULL, OPTION_SHARED }, /* FreeBSD.  */
     '\0', NULL, NULL, ONE_DASH },
+  { {"static-bundle", no_argument, NULL, OPTION_STATIC_BUNDLE},
+    '\0', NULL, N_("Create a static bundle library"), ONE_DASH },
   { {"pie", no_argument, NULL, OPTION_PIE},
     '\0', NULL, N_("Create a position independent executable"), ONE_DASH },
   { {"pic-executable", no_argument, NULL, OPTION_PIE},
@@ -1245,6 +1247,9 @@ parse_args (unsigned argc, char **argv)
 	    fatal (_("%P: -r and %s may not be used together\n"),
 		   bfd_link_dll (&link_info) ? "-shared" : "-pie");
 
+	  if (bfd_link_static_bundle (&link_info))
+	    fatal (_("%P: -r and -static-bundle may not be used together\n"));
+
 	  link_info.type = type_relocatable;
 	  config.build_constructors = false;
 	  config.magic_demand_paged = false;
@@ -1351,9 +1356,13 @@ parse_args (unsigned argc, char **argv)
 	case OPTION_SHARED:
 	  if (config.has_shared)
 	    {
-	      if (bfd_link_relocatable (&link_info))
+	      if (bfd_link_relocatable_type (&link_info))
 		fatal (_("%P: -r and %s may not be used together\n"),
 		       "-shared");
+
+	      if (bfd_link_static_bundle (&link_info))
+		fatal (_("%P: %s and %s may not be used together\n"),
+		       "-r", "-static-bundle");
 
 	      link_info.type = type_dll;
 	      /* When creating a shared library, the default
@@ -1366,14 +1375,32 @@ parse_args (unsigned argc, char **argv)
 	  else
 	    fatal (_("%P: -shared not supported\n"));
 	  break;
+	case OPTION_STATIC_BUNDLE:
+	  link_info.type = type_static_bundle;
+
+	  if (bfd_link_pic (&link_info))
+	    fatal (_("%P: %s and %s may not be used together\n"),
+		   "-static-bundle",
+		   bfd_link_dll (&link_info) ? "-shared" : "-pie");
+
+	  /* Use as much logic from relocatable as possible.  */
+	  config.build_constructors = false;
+	  config.magic_demand_paged = false;
+	  config.text_read_only = false;
+	  input_flags.dynamic = false;
+	  break;
 	case OPTION_NO_PIE:
 	  link_info.type = type_pde;
 	  break;
 	case OPTION_PIE:
 	  if (config.has_shared)
 	    {
-	      if (bfd_link_relocatable (&link_info))
+	      if (bfd_link_relocatable_type (&link_info))
 		fatal (_("%P: -r and %s may not be used together\n"), "-pie");
+
+	      if (bfd_link_static_bundle (&link_info))
+		fatal (_("%P: %s and %s may not be used together\n"),
+		      "-static-bundle","-pie");
 
 	      link_info.type = type_pie;
 	    }
@@ -1513,6 +1540,10 @@ parse_args (unsigned argc, char **argv)
 	  if (bfd_link_pic (&link_info))
 	    fatal (_("%P: -r and %s may not be used together\n"),
 		   bfd_link_dll (&link_info) ? "-shared" : "-pie");
+
+	  if (bfd_link_static_bundle (&link_info))
+	    fatal (_("%P: -r and %s may not be used together\n"),
+		   "-static-bundle");
 
 	  link_info.type = type_relocatable;
 	  config.build_constructors = true;
@@ -2034,18 +2065,22 @@ parse_args (unsigned argc, char **argv)
   /* -z nosectionheader implies --strip-all.  */
   if (config.no_section_header)
     {
-      if (bfd_link_relocatable (&link_info))
+      if (bfd_link_relocatable_type (&link_info))
 	fatal (_("%P: -r and -z nosectionheader may not be used together\n"));
+
+      if (bfd_link_static_bundle (&link_info))
+	fatal (_("%P: %s and -z nosectionheader may not be used together\n"),
+	       "-static-bundle");
 
       link_info.strip = strip_all;
     }
 
-  if (!bfd_link_dll (&link_info))
+  if (!bfd_link_dll (&link_info) && !bfd_link_static_bundle (&link_info))
     {
       if (command_line.filter_shlib)
-	fatal (_("%P: -F may not be used without -shared\n"));
+	fatal (_("%P: -F may not be used without -shared/-static-bundle\n"));
       if (command_line.auxiliary_filters)
-	fatal (_("%P: -f may not be used without -shared\n"));
+	fatal (_("%P: -f may not be used without -shared/-static-bundle\n"));
     }
 
   /* Treat ld -r -s as ld -r -S -x (i.e., strip all local symbols).  I
