@@ -474,6 +474,8 @@ static const struct ld_option ld_options[] =
     '\0', NULL, NULL, ONE_DASH },
   { {"static-bundle", no_argument, NULL, OPTION_STATIC_BUNDLE},
     '\0', NULL, N_("Create a static bundle library"), ONE_DASH },
+  { {"static-as-relocatable", no_argument, NULL, OPTION_STATIC_RELOCATABLE},
+    '\0', NULL, N_("Keep the e_type value as ET_REL for compatibility"), ONE_DASH },
   { {"pie", no_argument, NULL, OPTION_PIE},
     '\0', NULL, N_("Create a position independent executable"), ONE_DASH },
   { {"pic-executable", no_argument, NULL, OPTION_PIE},
@@ -1388,6 +1390,13 @@ parse_args (unsigned argc, char **argv)
 	  config.magic_demand_paged = false;
 	  config.text_read_only = false;
 	  input_flags.dynamic = false;
+	  break;
+	case OPTION_STATIC_RELOCATABLE:
+	  if (!bfd_link_static_bundle (&link_info))
+	    fatal (_("%P: %s may not be used without -static-bundle\n"),
+		   "-static-as-relocatable");
+
+	  link_info.static_as_relocatable = true;
 	  break;
 	case OPTION_NO_PIE:
 	  link_info.type = type_pde;

@@ -12650,7 +12650,7 @@ bfd_elf_final_link (bfd *abfd, struct bfd_link_info *info)
   if (bfd_link_pic (info))
     abfd->flags |= DYNAMIC;
 
-  if (bfd_link_static_bundle (info))
+  if (bfd_link_static_bundle (info) && !info->static_as_relocatable)
     abfd->flags |= STATIC_BUNDLE;
 
   dynamic = htab->dynamic_sections_created;
