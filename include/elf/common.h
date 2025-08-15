@@ -98,6 +98,7 @@
 #define ET_DYN		3	/* Position-independent executable or
 				   shared object file */
 #define ET_CORE		4	/* Core file */
+#define ET_STAT		5	/* Static bundle object file */
 #define ET_LOOS		0xFE00	/* Operating system-specific */
 #define ET_HIOS		0xFEFF	/* Operating system-specific */
 #define ET_LOPROC	0xFF00	/* Processor-specific */

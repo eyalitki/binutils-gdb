@@ -6973,6 +6973,8 @@ _bfd_elf_init_file_header (bfd *abfd,
     i_ehdrp->e_type = ET_DYN;
   else if ((abfd->flags & EXEC_P) != 0)
     i_ehdrp->e_type = ET_EXEC;
+  else if ((abfd->flags & STATIC_BUNDLE) != 0)
+    i_ehdrp->e_type = ET_STAT;
   else if (bfd_get_format (abfd) == bfd_core)
     i_ehdrp->e_type = ET_CORE;
   else

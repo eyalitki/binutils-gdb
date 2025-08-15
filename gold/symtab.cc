@@ -1373,7 +1373,8 @@ Symbol_table::add_from_relobj(
 	  elfcpp::Sym_write<size, big_endian> sw(symbuf);
 	  if (orig_st_shndx != elfcpp::SHN_UNDEF
 	      && is_ordinary
-	      && relobj->e_type() == elfcpp::ET_REL)
+	      && (relobj->e_type() == elfcpp::ET_REL
+		  || relobj->e_type() == elfcpp::ET_STAT))
 	    {
 	      // Symbol values in relocatable object files are section
 	      // relative.  This is normally what we want, but since here

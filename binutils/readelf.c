@@ -3188,6 +3188,7 @@ get_file_type (Filedata *filedata)
       else
 	return _("DYN (Shared object file)");
     case ET_CORE: return _("CORE (Core file)");
+    case ET_STAT: return _("STAT (Static bundle object file)");
 
     default:
       if ((e_type >= ET_LOPROC) && (e_type <= ET_HIPROC))
@@ -16210,7 +16211,8 @@ apply_relocations (Filedata *filedata,
       * num_relocs_return = 0;
     }
 
-  if (filedata->file_header.e_type != ET_REL)
+  if (filedata->file_header.e_type != ET_REL
+      && filedata->file_header.e_type != ET_STAT)
     /* No relocs to apply.  */
     return true;
 

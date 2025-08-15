@@ -585,7 +585,8 @@ elf_object_p (bfd *abfd)
 
   /* If this is a relocatable file and there is no section header
      table, then we're hosed.  */
-  if (i_ehdrp->e_shoff < sizeof (x_ehdr) && i_ehdrp->e_type == ET_REL)
+  if (i_ehdrp->e_shoff < sizeof (x_ehdr)
+      && (i_ehdrp->e_type == ET_REL || i_ehdrp->e_type == ET_STAT))
     goto got_wrong_format_error;
 
   /* As a simple sanity check, verify that what BFD thinks is the
@@ -616,6 +617,8 @@ elf_object_p (bfd *abfd)
     abfd->flags |= EXEC_P;
   else if (i_ehdrp->e_type == ET_DYN)
     abfd->flags |= DYNAMIC;
+  else if (i_ehdrp->e_type == ET_STAT)
+    abfd->flags |= STATIC_BUNDLE;
 
   if (i_ehdrp->e_phnum > 0)
     abfd->flags |= D_PAGED;
