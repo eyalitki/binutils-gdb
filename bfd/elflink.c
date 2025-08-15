@@ -806,7 +806,7 @@ bfd_elf_record_link_assignment (bfd *output_bfd,
 
   /* STV_HIDDEN and STV_INTERNAL symbols must be STB_LOCAL in shared objects
      and executables.  */
-  if (!bfd_link_relocatable (info)
+  if (!bfd_link_relocatable_type (info)
       && h->dynindx != -1
       && (ELF_ST_VISIBILITY (h->other) == STV_HIDDEN
 	  || ELF_ST_VISIBILITY (h->other) == STV_INTERNAL))
@@ -3172,7 +3172,8 @@ _bfd_elf_fix_symbol_flags (struct elf_link_hash_entry *h,
      visibility.  If the symbol has hidden or internal visibility, we
      will force it local.  */
   else if (h->needs_plt
-	   && bfd_link_pic (eif->info)
+	   && (bfd_link_pic (eif->info)
+	      || bfd_link_static_bundle (eif->info))
 	   && is_elf_hash_table (eif->info->hash)
 	   && (SYMBOLIC_BIND (eif->info, h)
 	       || ELF_ST_VISIBILITY (h->other) != STV_DEFAULT)
@@ -5649,7 +5650,7 @@ elf_link_add_object_symbols (bfd *abfd, struct bfd_link_info *info)
 		    goto error_free_vers;
 		}
 	    }
-	  else if (h->dynindx != -1)
+	  else if (h->dynindx != -1 || bfd_link_static_bundle (info))
 	    /* If the symbol already has a dynamic index, but
 	       visibility says it should not be visible, turn it into
 	       a local symbol.  */
@@ -9811,6 +9812,9 @@ elf_link_adjust_relocs (bfd *abfd,
 	}
       BFD_ASSERT ((*rel_hash)->indx >= 0);
 
+      if ((*rel_hash)->forced_local)
+	continue;
+
       (*swap_in) (abfd, erela, irela);
       for (j = 0; j < bed->s->int_rels_per_ext_rel; j++)
 	irela[j].r_info = ((bfd_vma) (*rel_hash)->indx << r_sym_shift
@@ -10998,14 +11002,16 @@ elf_link_output_extsym (struct bfd_hash_entry *bh, void *data)
      STT_GNU_IFUNC symbol must go through PLT.  */
   if ((h->type == STT_GNU_IFUNC
        && h->def_regular
-       && !bfd_link_relocatable (flinfo->info))
+       && !bfd_link_relocatable_type (flinfo->info))
       || ((h->dynindx != -1
 	   || h->forced_local)
-	  && ((bfd_link_pic (flinfo->info)
-	       && (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
-		   || h->root.type != bfd_link_hash_undefweak))
+	  && (((bfd_link_pic (flinfo->info)
+		|| bfd_link_static_bundle (flinfo->info))
+		&& (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
+		    || h->root.type != bfd_link_hash_undefweak))
 	      || !h->forced_local)
-	  && elf_hash_table (flinfo->info)->dynamic_sections_created))
+	  && (elf_hash_table (flinfo->info)->dynamic_sections_created
+	      || bfd_link_static_bundle (flinfo->info))))
     {
       if (! ((*bed->elf_backend_finish_dynamic_symbol)
 	     (flinfo->output_bfd, flinfo->info, h, &sym)))
