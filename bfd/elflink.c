@@ -3151,7 +3151,10 @@ _bfd_elf_fix_symbol_flags (struct elf_link_hash_entry *h,
 	h->def_regular = 1;
     }
 
-  /* Backend specific symbol fixup.  */
+  /* Backend specific symbol fixup, only needed for dynamic case.  */
+  if (elf_hash_table (eif->info)->dynobj == NULL)
+    return true;
+
   bed = get_elf_backend_data (elf_hash_table (eif->info)->dynobj);
   if (bed->elf_backend_fixup_symbol
       && !(*bed->elf_backend_fixup_symbol) (eif->info, h))
@@ -6926,6 +6929,7 @@ bfd_elf_size_dynamic_sections (bfd *output_bfd,
 {
   bfd *dynobj;
   const struct elf_backend_data *bed;
+  struct elf_info_failed asvinfo;
 
   *sinterpptr = NULL;
 
@@ -6949,10 +6953,22 @@ bfd_elf_size_dynamic_sections (bfd *output_bfd,
 
   dynobj = elf_hash_table (info)->dynobj;
 
-  if (dynobj != NULL && elf_hash_table (info)->dynamic_sections_created)
+  /* Symbol visibility should be applied in some non-dynamic cases.  */
+  if (bfd_link_static_library (info))
+    {
+      /* Attach all the symbols to their version information.  */
+      asvinfo.info = info;
+      asvinfo.failed = false;
+
+      elf_link_hash_traverse (elf_hash_table (info),
+			      _bfd_elf_link_assign_sym_version,
+			      &asvinfo);
+      if (asvinfo.failed)
+	return false;
+    }
+  else if (dynobj != NULL && elf_hash_table (info)->dynamic_sections_created)
     {
       struct bfd_elf_version_tree *verdefs;
-      struct elf_info_failed asvinfo;
       struct bfd_elf_version_tree *t;
       struct bfd_elf_version_expr *d;
       asection *s;
