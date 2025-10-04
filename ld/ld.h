@@ -332,6 +332,9 @@ typedef struct
 
   /* Compress DWARF debug sections.  */
   enum compressed_debug_section_type compress_debug;
+
+  /* If set, finalize local symbols withing the relocatable object.  */
+  bool finalize_locals;
 } ld_config_type;
 
 /* An enumeration of the linker phases for which resource usage information

@@ -208,6 +208,8 @@ static const struct ld_option ld_options[] =
     'q', NULL, "Generate relocations in final output", TWO_DASHES },
   { {"relocatable", no_argument, NULL, 'r'},
     'r', NULL, N_("Generate relocatable output"), TWO_DASHES },
+  { {"finalize-locals", no_argument, NULL, OPTION_FINALIZE_LOCALS},
+    '\0', NULL, N_("Finalize local relocations within the relocatable output"), TWO_DASHES },
   { {NULL, no_argument, NULL, '\0'},
     'i', NULL, NULL, ONE_DASH },
   { {"just-symbols", required_argument, NULL, 'R'},
@@ -1237,6 +1239,7 @@ parse_args (unsigned argc, char **argv)
 		   bfd_link_dll (&link_info) ? "-shared" : "-pie");
 
 	  link_info.type = type_relocatable;
+	  link_info.static_bundle = false;
 	  config.build_constructors = false;
 	  config.magic_demand_paged = false;
 	  config.text_read_only = false;
@@ -1356,6 +1359,12 @@ parse_args (unsigned argc, char **argv)
 	    }
 	  else
 	    fatal (_("%P: -shared not supported\n"));
+	  break;
+	case OPTION_FINALIZE_LOCALS:
+	  if (!bfd_link_relocatable (&link_info))
+	    fatal (_("%P: %s may only be used together with -r\n"),
+		   "--finalize-locals");
+	  link_info.static_bundle = true;
 	  break;
 	case OPTION_NO_PIE:
 	  link_info.type = type_pde;
@@ -2029,12 +2038,12 @@ parse_args (unsigned argc, char **argv)
       link_info.strip = strip_all;
     }
 
-  if (!bfd_link_dll (&link_info))
+  if (!bfd_link_dll (&link_info) && !link_info.static_bundle)
     {
       if (command_line.filter_shlib)
-	fatal (_("%P: -F may not be used without -shared\n"));
+	fatal (_("%P: -F may not be used without -shared or --finalize-locals\n"));
       if (command_line.auxiliary_filters)
-	fatal (_("%P: -f may not be used without -shared\n"));
+	fatal (_("%P: -f may not be used without -shared or --finalize-locals\n"));
     }
 
   /* Treat ld -r -s as ld -r -S -x (i.e., strip all local symbols).  I

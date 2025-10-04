@@ -476,6 +476,11 @@ struct bfd_link_info
      statics.  */
   unsigned int task_link: 1;
 
+  /* TRUE if BFD should generate a "static bundle" object file,
+     similar to relocatable but also with local relocations being
+     finalized.  */
+  unsigned int static_bundle: 1;
+
   /* TRUE if ok to have multiple definitions, without warning.  */
   unsigned int allow_multiple_definition: 1;
 

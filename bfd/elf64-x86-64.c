@@ -3227,7 +3227,9 @@ elf_x86_64_relocate_section (bfd *output_bfd,
       bool converted_reloc;
       bool need_copy_reloc_in_pie;
       bool no_copyreloc_p;
+      bool skip_reloc_registration;
 
+      skip_reloc_registration = true;
       r_type = ELF32_R_TYPE (rel->r_info);
       if (r_type == (int) R_X86_64_GNU_VTINHERIT
 	  || r_type == (int) R_X86_64_GNU_VTENTRY)
@@ -3286,6 +3288,15 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 				   h, sec, relocation,
 				   unresolved_reloc, warned, ignored);
 	  st_size = h->size;
+	  skip_reloc_registration = !info->static_bundle || !h->forced_local;
+
+	  struct bfd_section *input_sec_out = input_section->output_section;
+	  struct bfd_section *sym_sec_out = sec ? sec->output_section : NULL;
+
+	  /* A relocatable can not finalize a cross-section relocation.  */
+	  if (sym_sec_out != NULL
+	      && sym_sec_out->index != input_sec_out->index)
+	    skip_reloc_registration = true;
 	}
 
       if (sec != NULL && discarded_section (sec))
@@ -3310,7 +3321,7 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 	  continue;
 	}
 
-      if (bfd_link_relocatable (info))
+      if (bfd_link_relocatable (info) && skip_reloc_registration)
 	{
 	  if (wrel != rel)
 	    *wrel = *rel;
@@ -5117,6 +5128,13 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 	    }
 	}
 
+      /* Skip the applied relocation if based on local relocation.  */
+      if (bfd_link_relocatable (info) && !skip_reloc_registration)
+	{
+	  wrel--;
+	  continue;
+	}
+
       if (wrel != rel)
 	*wrel = *rel;
     }
@@ -5409,7 +5427,8 @@ elf_x86_64_finish_dynamic_symbol (bfd *output_bfd,
   if (h->got.offset != (bfd_vma) -1
       && ! GOT_TLS_GD_ANY_P (elf_x86_hash_entry (h)->tls_type)
       && elf_x86_hash_entry (h)->tls_type != GOT_TLS_IE
-      && !local_undefweak)
+      && !local_undefweak
+      && !(bfd_link_relocatable (info) && info->static_bundle))
     {
       Elf_Internal_Rela rela;
       asection *relgot = htab->elf.srelgot;
