@@ -1,0 +1,181 @@
+# Expect script for ld-static-bundle tests
+#   Copyright (C) 1994-2025 Free Software Foundation, Inc.
+#
+# This file is part of the GNU Binutils.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+# MA 02110-1301, USA.
+#
+# Written by Eyal Itkin (eyal.itkin@gmail.com)
+#
+
+# Check to see if the C compiler works
+if { ![check_compiler_available] } {
+    return
+}
+
+# This test can only be run on a couple of ELF platforms.
+# Square bracket expressions seem to confuse istarget.
+if { ![istarget x86_64-*-linux*] } {
+    return
+}
+
+set tmpdir tmpdir
+
+# Disable all sanitizers.
+set old_CFLAGS "$CFLAGS_FOR_TARGET_TEST"
+append CFLAGS_FOR_TARGET_TEST " $NOSANITIZE_CFLAGS"
+
+# Strip a symbol using "strip"
+#
+proc strip_symbol { strip symbol target } {
+    set exec_output [run_host_cmd "$strip" "-N$symbol $target"]
+    set exec_output [prune_warnings $exec_output]
+
+    if [string match "" $exec_output] then {
+	send_log "$exec_output\n"
+	return 1
+    } else {
+	return 0
+    }
+}
+
+# The test procedure.
+proc static_bundle_test { progname testname main helper bundle1 bundle2 lib_helper expect_strip args } {
+    global CC_FOR_TARGET
+    global srcdir
+    global subdir
+    global exec_output
+    global host_triplet
+    global tmpdir
+    global ar
+    global ld
+    global strip
+
+    if [llength $args] { set ldflags [lindex $args 0] } else { set ldflags "" }
+    if { [llength $args] >= 2 } { set ldflags [lindex $args 1] } else { set ldflags "" }
+
+    # Build the helper static library.
+    if {![ar_simple_create $ar "" $tmpdir/$progname.helper.a "$tmpdir/$lib_helper"]} {
+	fail "$testname - creating helper archive"
+	return
+    }
+
+    # Build the static bundle.
+    if {![ld_relocate $ld $tmpdir/$progname.bundle.o "$ldflags --finalize-locals $tmpdir/$bundle1 $tmpdir/$bundle2 $tmpdir/$progname.helper.a"]} {
+	fail "$testname - creating static bundle"
+	return
+    }
+
+    # Build the static bundle based static library.
+    if {![ar_simple_create $ar "" $tmpdir/$progname.static.a "$tmpdir/$progname.bundle.o"]} {
+	fail "$testname - creating static library"
+	return
+    }
+
+    # Link against the static library.
+    if ![ld_link $CC_FOR_TARGET $tmpdir/$progname "$ldflags $tmpdir/$main $tmpdir/$helper $tmpdir/$progname.static.a"] {
+	fail "$testname - linking the test program"
+	return
+    }
+
+    if ![isnative] {
+	unsupported $testname
+	return
+    }
+
+    # Run the resulting program
+    send_log "$tmpdir/$progname >$tmpdir/$progname.out\n"
+    verbose "$tmpdir/$progname >$tmpdir/$progname.out"
+    catch "exec $tmpdir/$progname >$tmpdir/$progname.out" exec_output
+    if ![string match "" $exec_output] then {
+	send_log "$exec_output\n"
+	verbose "$exec_output"
+	fail "$testname - executing test program"
+	return
+    }
+
+    send_log "diff $tmpdir/$progname.out $srcdir/$subdir/static-bundle.dat\n"
+    verbose "diff $tmpdir/$progname.out $srcdir/$subdir/static-bundle.dat"
+    catch "exec diff $tmpdir/$progname.out $srcdir/$subdir/static-bundle.dat" exec_output
+    set exec_output [prune_warnings $exec_output]
+
+    if {![string match "" $exec_output]} then {
+	send_log "$exec_output\n"
+	verbose "$exec_output"
+	fail "$testname - test program output"
+	return
+    }
+
+    # Check that strip results align with expectations - direct bundle function
+    if {$expect_strip != [strip_symbol $strip "helper_get_value" $tmpdir/$progname.bundle.o]} then {
+	fail "$testname - stripping main symbol"
+	return
+    }
+
+    # Check that strip results align with expectations - helper bundle function
+    if {$expect_strip != [strip_symbol $strip "helper_get_inner_value" $tmpdir/$progname.bundle.o]} then {
+	fail "$testname - stripping helper symbol"
+	return
+    }
+
+    pass "$testname"
+}
+
+# Run the test with symbol visibility flags.
+set lib_cc_flags "-fvisibility=hidden"
+if { ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/main.c $tmpdir/mainp.o]
+     || ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/helper.c $tmpdir/helperp.o] } {
+    unsupported "static-bundle (program, symbol visibility hidden)"
+} else {
+    if { ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/lib_helper.c $tmpdir/lib_helperp.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle1.c $tmpdir/bundle1p.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle2.c $tmpdir/bundle2p.o] } {
+	unsupported "static-bundle (libraries, symbol visibility hidden)"
+    } else {
+	static_bundle_test bundlep "visibility" mainp.o helperp.o bundle1p.o bundle2p.o lib_helperp.o 1
+    }
+}
+
+# Run the test with symbol version script.
+if { ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/main.c $tmpdir/mainp.o]
+     || ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/helper.c $tmpdir/helperp.o] } {
+    unsupported "static-bundle (program, version script)"
+} else {
+    if { ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/lib_helper.c $tmpdir/lib_helperp.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle1.c $tmpdir/bundle1p.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle2.c $tmpdir/bundle2p.o] } {
+	unsupported "static-bundle (libraries, version script)"
+    } else {
+	static_bundle_test bundlep "version-script" mainp.o helperp.o bundle1p.o bundle2p.o lib_helperp.o 1 "--version-script=$srcdir/$subdir/version.map"
+    }
+}
+
+# Run the test with symbol version script and function sections.
+set lib_cc_flags "-fvisibility=hidden -ffunction-sections"
+if { ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/main.c $tmpdir/mainp.o]
+     || ![ld_compile "$CC_FOR_TARGET" $srcdir/$subdir/helper.c $tmpdir/helperp.o] } {
+    unsupported "static-bundle (program, function sections)"
+} else {
+    if { ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/lib_helper.c $tmpdir/lib_helperp.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle1.c $tmpdir/bundle1p.o]
+	 || ![ld_compile "$CC_FOR_TARGET $lib_cc_flags" $srcdir/$subdir/bundle2.c $tmpdir/bundle2p.o] } {
+	unsupported "static-bundle (libraries, function sections)"
+    } else {
+	static_bundle_test bundlep "function-sections" mainp.o helperp.o bundle1p.o bundle2p.o lib_helperp.o 0 "--version-script=$srcdir/$subdir/version.map"
+    }
+}
+
+set CFLAGS_FOR_TARGET_TEST "$old_CFLAGS"

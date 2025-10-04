@@ -1,0 +1,7 @@
+TEST_1 {
+     global:
+
+     lib_get_value;
+
+     local: *;
+};

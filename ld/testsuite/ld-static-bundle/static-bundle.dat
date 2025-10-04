@@ -1,0 +1,3 @@
+helper_get_value () == 0x1000
+helper_get_inner_value () == 0x0200
+lib_get_value () == 0x0034
