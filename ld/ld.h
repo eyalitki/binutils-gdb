@@ -335,6 +335,9 @@ typedef struct
 
   /* If set, localize hidden symbols.  */
   bool localize_hidden;
+
+  /* If set, finalize locale symbols.  */
+  bool finalize_locals;
 } ld_config_type;
 
 /* An enumeration of the linker phases for which resource usage information

@@ -489,6 +489,9 @@ struct bfd_link_info
   /* TRUE if supports localizing hidden symbols.  */
   unsigned int localize_hidden: 1;
 
+  /* TRUE if supports finalizing local symbols.  */
+  unsigned int finalize_locals: 1;
+
   /* TRUE if ok to have version with no definition.  */
   unsigned int allow_undefined_version: 1;
 

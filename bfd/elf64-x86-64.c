@@ -3158,6 +3158,47 @@ elf_x86_64_tpoff (struct bfd_link_info *info, bfd_vma address)
   return address - static_tls_size - htab->tls_sec->vma;
 }
 
+/* Check if a given symbol-related relocation can be finalized.  */
+
+static int
+elf_x86_64_can_finalize_reloc (Elf_Internal_Rela *rel,
+			       asection *input_section,
+			       asection *output_section)
+{
+  struct bfd_section *input_sec_out;
+  struct bfd_section *sym_sec_out;
+  unsigned int r_type;
+
+  if (output_section == NULL)
+    return 0;
+
+  input_sec_out = input_section->output_section;
+  sym_sec_out = output_section->output_section;
+
+  /* Relocation must not cross section boundaries.  */
+  if (sym_sec_out->index != input_sec_out->index)
+    return 0;
+
+  r_type = ELF32_R_TYPE (rel->r_info);
+
+  /* Some relocation types can not be finalized.  */
+  switch (r_type)
+    {
+    default:
+      break;
+    case R_X86_64_GOTPCREL:
+    case R_X86_64_GOTPCRELX:
+    case R_X86_64_REX_GOTPCRELX:
+    case R_X86_64_CODE_4_GOTPCRELX:
+    case R_X86_64_CODE_5_GOTPCRELX:
+    case R_X86_64_CODE_6_GOTPCRELX:
+    case R_X86_64_GOTPCREL64:
+      return 0;
+    }
+
+  return 1;
+}
+
 /* Relocate an x86_64 ELF section.  */
 
 static int
@@ -3227,7 +3268,9 @@ elf_x86_64_relocate_section (bfd *output_bfd,
       bool converted_reloc;
       bool need_copy_reloc_in_pie;
       bool no_copyreloc_p;
+      bool reloc_skip_symbol;
 
+      reloc_skip_symbol = true;
       r_type = ELF32_R_TYPE (rel->r_info);
       if (r_type == (int) R_X86_64_GNU_VTINHERIT
 	  || r_type == (int) R_X86_64_GNU_VTENTRY)
@@ -3286,6 +3329,9 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 				   h, sec, relocation,
 				   unresolved_reloc, warned, ignored);
 	  st_size = h->size;
+	  if (info->finalize_locals && h->forced_local
+	      && elf_x86_64_can_finalize_reloc (rel, input_section, sec))
+	    reloc_skip_symbol = false;
 	}
 
       if (sec != NULL && discarded_section (sec))
@@ -3310,7 +3356,7 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 	  continue;
 	}
 
-      if (bfd_link_relocatable (info))
+      if (bfd_link_relocatable (info) && reloc_skip_symbol)
 	{
 	  if (wrel != rel)
 	    *wrel = *rel;
@@ -5115,6 +5161,12 @@ elf_x86_64_relocate_section (bfd *output_bfd,
 		 (uint64_t) rel->r_offset, name, (int) r);
 	      return false;
 	    }
+	}
+
+      if (bfd_link_relocatable (info))
+	{
+	  wrel--;
+	  continue;
 	}
 
       if (wrel != rel)
