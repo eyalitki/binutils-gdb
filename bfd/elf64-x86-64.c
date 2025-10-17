@@ -5409,7 +5409,8 @@ elf_x86_64_finish_dynamic_symbol (bfd *output_bfd,
   if (h->got.offset != (bfd_vma) -1
       && ! GOT_TLS_GD_ANY_P (elf_x86_hash_entry (h)->tls_type)
       && elf_x86_hash_entry (h)->tls_type != GOT_TLS_IE
-      && !local_undefweak)
+      && !local_undefweak
+      && !bfd_link_relocatable (info))
     {
       Elf_Internal_Rela rela;
       asection *relgot = htab->elf.srelgot;

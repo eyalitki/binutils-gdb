@@ -486,6 +486,9 @@ struct bfd_link_info
   /* TRUE if multiple definitions should only warn.  */
   unsigned int warn_multiple_definition: 1;
 
+  /* TRUE if supports localizing hidden symbols.  */
+  unsigned int localize_hidden: 1;
+
   /* TRUE if ok to have version with no definition.  */
   unsigned int allow_undefined_version: 1;
 

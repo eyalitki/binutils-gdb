@@ -332,6 +332,9 @@ typedef struct
 
   /* Compress DWARF debug sections.  */
   enum compressed_debug_section_type compress_debug;
+
+  /* If set, localize hidden symbols.  */
+  bool localize_hidden;
 } ld_config_type;
 
 /* An enumeration of the linker phases for which resource usage information

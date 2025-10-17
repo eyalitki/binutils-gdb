@@ -803,9 +803,9 @@ bfd_elf_record_link_assignment (bfd *output_bfd,
       (*bed->elf_backend_hide_symbol) (info, h, true);
     }
 
-  /* STV_HIDDEN and STV_INTERNAL symbols must be STB_LOCAL in shared objects
-     and executables.  */
-  if (!bfd_link_relocatable (info)
+  /* STV_HIDDEN and STV_INTERNAL symbols must be STB_LOCAL if hidden
+     symbols were marked for localization.  */
+  if (info->localize_hidden
       && h->dynindx != -1
       && (ELF_ST_VISIBILITY (h->other) == STV_HIDDEN
 	  || ELF_ST_VISIBILITY (h->other) == STV_INTERNAL))
@@ -3151,7 +3151,10 @@ _bfd_elf_fix_symbol_flags (struct elf_link_hash_entry *h,
 	h->def_regular = 1;
     }
 
-  /* Backend specific symbol fixup.  */
+  /* Backend specific symbol fixup, only needed for dynamic case.  */
+  if (elf_hash_table (eif->info)->dynobj == NULL)
+    return true;
+
   bed = get_elf_backend_data (elf_hash_table (eif->info)->dynobj);
   if (bed->elf_backend_fixup_symbol
       && !(*bed->elf_backend_fixup_symbol) (eif->info, h))
@@ -3197,7 +3200,7 @@ _bfd_elf_fix_symbol_flags (struct elf_link_hash_entry *h,
      visibility.  If the symbol has hidden or internal visibility, we
      will force it local.  */
   else if (h->needs_plt
-	   && bfd_link_pic (eif->info)
+	   && eif->info->localize_hidden
 	   && is_elf_hash_table (eif->info->hash)
 	   && (SYMBOLIC_BIND (eif->info, h)
 	       || ELF_ST_VISIBILITY (h->other) != STV_DEFAULT)
@@ -5680,9 +5683,9 @@ elf_link_add_object_symbols (bfd *abfd, struct bfd_link_info *info)
 		    goto error_free_vers;
 		}
 	    }
-	  else if (h->dynindx != -1)
-	    /* If the symbol already has a dynamic index, but
-	       visibility says it should not be visible, turn it into
+	  else if (info->localize_hidden
+		   && (h->dynindx != -1 || bfd_link_relocatable (info)))
+	    /* If visibility says it should not be visible, turn it into
 	       a local symbol.  */
 	    switch (ELF_ST_VISIBILITY (h->other))
 	      {
@@ -6925,6 +6928,7 @@ bfd_elf_size_dynamic_sections (bfd *output_bfd,
 {
   bfd *dynobj;
   const struct elf_backend_data *bed;
+  struct elf_info_failed asvinfo;
 
   *sinterpptr = NULL;
 
@@ -6948,10 +6952,22 @@ bfd_elf_size_dynamic_sections (bfd *output_bfd,
 
   dynobj = elf_hash_table (info)->dynobj;
 
-  if (dynobj != NULL && elf_hash_table (info)->dynamic_sections_created)
+  /* Symbol visibility should be applied in some non-dynamic cases.  */
+  if (bfd_link_relocatable (info) && info->localize_hidden)
+    {
+      /* Attach all the symbols to their version information.  */
+      asvinfo.info = info;
+      asvinfo.failed = false;
+
+      elf_link_hash_traverse (elf_hash_table (info),
+			      _bfd_elf_link_assign_sym_version,
+			      &asvinfo);
+      if (asvinfo.failed)
+	return false;
+    }
+  else if (dynobj != NULL && elf_hash_table (info)->dynamic_sections_created)
     {
       struct bfd_elf_version_tree *verdefs;
-      struct elf_info_failed asvinfo;
       struct bfd_elf_version_tree *t;
       struct bfd_elf_version_expr *d;
       asection *s;
@@ -11039,11 +11055,13 @@ elf_link_output_extsym (struct bfd_hash_entry *bh, void *data)
        && !bfd_link_relocatable (flinfo->info))
       || ((h->dynindx != -1
 	   || h->forced_local)
-	  && ((bfd_link_pic (flinfo->info)
+	  && ((flinfo->info->localize_hidden
 	       && (ELF_ST_VISIBILITY (h->other) == STV_DEFAULT
 		   || h->root.type != bfd_link_hash_undefweak))
 	      || !h->forced_local)
-	  && elf_hash_table (flinfo->info)->dynamic_sections_created))
+	  && (elf_hash_table (flinfo->info)->dynamic_sections_created
+	      || (bfd_link_relocatable (flinfo->info)
+		  && flinfo->info->localize_hidden))))
     {
       if (! ((*bed->elf_backend_finish_dynamic_symbol)
 	     (flinfo->output_bfd, flinfo->info, h, &sym)))

@@ -208,6 +208,8 @@ static const struct ld_option ld_options[] =
     'q', NULL, "Generate relocations in final output", TWO_DASHES },
   { {"relocatable", no_argument, NULL, 'r'},
     'r', NULL, N_("Generate relocatable output"), TWO_DASHES },
+  { {"localize-hidden", no_argument, NULL, OPTION_LOCALIZE_HIDDEN},
+    '\0', NULL, N_("Localize hidden relocatable symbols"), TWO_DASHES },
   { {NULL, no_argument, NULL, '\0'},
     'i', NULL, NULL, ONE_DASH },
   { {"just-symbols", required_argument, NULL, 'R'},
@@ -1237,6 +1239,7 @@ parse_args (unsigned argc, char **argv)
 		   bfd_link_dll (&link_info) ? "-shared" : "-pie");
 
 	  link_info.type = type_relocatable;
+	  link_info.localize_hidden = false;
 	  config.build_constructors = false;
 	  config.magic_demand_paged = false;
 	  config.text_read_only = false;
@@ -1347,6 +1350,7 @@ parse_args (unsigned argc, char **argv)
 		       "-shared");
 
 	      link_info.type = type_dll;
+	      link_info.localize_hidden = true;
 	      /* When creating a shared library, the default
 		 behaviour is to ignore any unresolved references.  */
 	      if (link_info.unresolved_syms_in_objects == RM_NOT_YET_SET)
@@ -1356,6 +1360,12 @@ parse_args (unsigned argc, char **argv)
 	    }
 	  else
 	    fatal (_("%P: -shared not supported\n"));
+	  break;
+	case OPTION_LOCALIZE_HIDDEN:
+	  if (!bfd_link_relocatable (&link_info))
+	    fatal (_("%P: %s may only be used together with -r\n"),
+		   "--localize-hidden");
+	  link_info.localize_hidden = true;
 	  break;
 	case OPTION_NO_PIE:
 	  link_info.type = type_pde;
@@ -1367,6 +1377,7 @@ parse_args (unsigned argc, char **argv)
 		fatal (_("%P: -r and %s may not be used together\n"), "-pie");
 
 	      link_info.type = type_pie;
+	      link_info.localize_hidden = true;
 	    }
 	  else
 	    fatal (_("%P: -pie not supported\n"));
